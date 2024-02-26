@@ -125,8 +125,8 @@ def _get_first_singular_vectors_svd(X, Y):
     return U[:, 0], Vt[0, :]
 
 
-def _center_scale_xy(X, Y, scale=True):
-    """Center X, Y and scale if the scale parameter==True
+def _center_scale_xy(X, Y, scale=True, center_x = True):
+    """ Center X, Y and scale if the scale parameter==True
 
     Returns
     -------
@@ -134,8 +134,11 @@ def _center_scale_xy(X, Y, scale=True):
     """
     # center
     x_mean = X.mean(axis=0)
-    X -= x_mean
+
+    if center_x: 
+        X -= x_mean
     y_mean = Y.mean(axis=0)
+
     Y -= y_mean
     # scale
     if scale:
@@ -181,6 +184,7 @@ class _PLS(
     _parameter_constraints: dict = {
         "n_components": [Interval(Integral, 1, None, closed="left")],
         "scale": ["boolean"],
+        "center_x": ["boolean"],
         "deflation_mode": [StrOptions({"regression", "canonical"})],
         "mode": [StrOptions({"A", "B"})],
         "algorithm": [StrOptions({"svd", "nipals"})],
@@ -201,6 +205,7 @@ class _PLS(
         max_iter=500,
         tol=1e-06,
         copy=True,
+        center_x = True
     ):
         self.n_components = n_components
         self.deflation_mode = deflation_mode
@@ -210,6 +215,8 @@ class _PLS(
         self.max_iter = max_iter
         self.tol = tol
         self.copy = copy
+        self.center_x = center_x
+
 
     @_fit_context(prefer_skip_nested_validation=True)
     def fit(self, X, Y):
@@ -263,7 +270,7 @@ class _PLS(
 
         # Scale (in place)
         Xk, Yk, self._x_mean, self._y_mean, self._x_std, self._y_std = _center_scale_xy(
-            X, Y, self.scale
+            X, Y, self.scale, self.center_x
         )
 
         self.x_weights_ = np.zeros((p, n_components))  # U
@@ -615,7 +622,7 @@ class PLSRegression(_PLS):
     #     - "pls" with function oscorespls.fit(X, Y)
 
     def __init__(
-        self, n_components=2, *, scale=True, max_iter=500, tol=1e-06, copy=True
+        self, n_components=2, *, scale=True, center_x = True,  max_iter=500, tol=1e-06, copy=True
     ):
         super().__init__(
             n_components=n_components,
@@ -626,6 +633,7 @@ class PLSRegression(_PLS):
             max_iter=max_iter,
             tol=tol,
             copy=copy,
+            center_x = center_x,
         )
 
     def fit(self, X, Y):
@@ -773,10 +781,12 @@ class PLSCanonical(_PLS):
         max_iter=500,
         tol=1e-06,
         copy=True,
+        center_x = True,
     ):
         super().__init__(
             n_components=n_components,
             scale=scale,
+            center_x = center_x,
             deflation_mode="canonical",
             mode="A",
             algorithm=algorithm,
@@ -882,11 +892,12 @@ class CCA(_PLS):
         _parameter_constraints.pop(param)
 
     def __init__(
-        self, n_components=2, *, scale=True, max_iter=500, tol=1e-06, copy=True
+        self, n_components=2, *, scale=True, center_x = True, max_iter=500, tol=1e-06, copy=True
     ):
         super().__init__(
             n_components=n_components,
             scale=scale,
+            center_x = center_x,
             deflation_mode="canonical",
             mode="B",
             algorithm="nipals",
@@ -967,12 +978,14 @@ class PLSSVD(ClassNamePrefixFeaturesOutMixin, TransformerMixin, BaseEstimator):
     _parameter_constraints: dict = {
         "n_components": [Interval(Integral, 1, None, closed="left")],
         "scale": ["boolean"],
+        "center_x": ["boolean"],
         "copy": ["boolean"],
     }
 
-    def __init__(self, n_components=2, *, scale=True, copy=True):
+    def __init__(self, n_components=2, *, scale=True, center_x = True, copy=True):
         self.n_components = n_components
         self.scale = scale
+        self.center_x = center_x
         self.copy = copy
 
     @_fit_context(prefer_skip_nested_validation=True)
@@ -1014,7 +1027,7 @@ class PLSSVD(ClassNamePrefixFeaturesOutMixin, TransformerMixin, BaseEstimator):
             )
 
         X, Y, self._x_mean, self._y_mean, self._x_std, self._y_std = _center_scale_xy(
-            X, Y, self.scale
+            X, Y, self.scale, self.center_x
         )
 
         # Compute SVD of cross-covariance matrix
